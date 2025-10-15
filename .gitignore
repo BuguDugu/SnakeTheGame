@@ -1,16 +1,23 @@
-# Compiled class file
+# Java / Maven
 *.class
 
-# Log file
+# Maven build
+/target/
+**/target/
+
+# IDEs
+.idea/
+*.iml
+.project
+.classpath
+.settings/
+out/
+
+# Logs
 *.log
+logs/
 
-# BlueJ files
-*.ctxt
-
-# Mobile Tools for Java (J2ME)
-.mtj.tmp/
-
-# Package Files #
+# Packages / Artifacts
 *.jar
 *.war
 *.nar
@@ -18,7 +25,13 @@
 *.zip
 *.tar.gz
 *.rar
+snake-the-game/launcher/target/SnakeTheGame.exe
+snake-the-game/launcher/target/*.jar
 
-# virtual machine crash logs, see http://www.java.com/en/download/help/error_hotspot.xml
+# OS files
+.DS_Store
+Thumbs.db
+
+# JVM crash logs
 hs_err_pid*
 replay_pid*
