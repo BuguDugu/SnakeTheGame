@@ -6,14 +6,24 @@ import com.badlogic.gdx.ScreenAdapter;
 import com.badlogic.gdx.graphics.Color;
 import com.badlogic.gdx.graphics.GL20;
 import com.badlogic.gdx.graphics.OrthographicCamera;
+import com.badlogic.gdx.graphics.Pixmap;
+import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.scenes.scene2d.Stage;
+import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.Table;
+import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
+import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
+import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
+import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 
 import java.util.*;
 
 public class GameScreen extends ScreenAdapter {
-    public static final int CELL_SIZE = 20;
+    public static final int DEFAULT_CELL_SIZE = 20;
     public static final int GRID_COLS = 30;
     public static final int GRID_ROWS = 20;
 
@@ -24,6 +34,13 @@ public class GameScreen extends ScreenAdapter {
     private OrthographicCamera camera;
     private SpriteBatch batch;
     private BitmapFont font;
+
+    // Dynamic layout
+    private int cellSize;
+    private int originX;
+    private int originY;
+    private int worldWidth;
+    private int worldHeight;
 
     private Deque<Point> snake;
     private Set<Point> snakeSet;
@@ -36,6 +53,13 @@ public class GameScreen extends ScreenAdapter {
     private boolean gameOver = false;
     private int score = 0;
 
+    // UI overlay for game over
+    private Stage uiStage;
+    private Skin uiSkin;
+    private Texture uiBtnUp, uiBtnOver, uiBtnDown;
+    private Table gameOverTable;
+    private Label scoreLabel;
+
     public GameScreen(MainGame game, Level level) {
         this.game = game;
         this.level = level;
@@ -43,16 +67,70 @@ public class GameScreen extends ScreenAdapter {
 
     @Override
     public void show() {
-        int width = GRID_COLS * CELL_SIZE;
-        int height = GRID_ROWS * CELL_SIZE;
         camera = new OrthographicCamera();
-        camera.setToOrtho(false, width, height);
         shapes = new ShapeRenderer();
         shapes.setAutoShapeType(true);
         batch = game.batch;
         font = game.font;
         rng = new Random();
+        // Initialize layout based on current window
+        resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
+        setupUi();
         resetGame();
+    }
+
+    private void setupUi() {
+        uiStage = new Stage(new com.badlogic.gdx.utils.viewport.ScreenViewport(), batch);
+        uiSkin = new Skin();
+        uiSkin.add("default-font", font, BitmapFont.class);
+
+        uiBtnUp = makeRoundRectTex(240, 48, new Color(0.2f, 0.6f, 0.85f, 1f));
+        uiBtnOver = makeRoundRectTex(240, 48, new Color(0.25f, 0.75f, 1.0f, 1f));
+        uiBtnDown = makeRoundRectTex(240, 48, new Color(0.15f, 0.5f, 0.7f, 1f));
+
+        Drawable up = new TextureRegionDrawable(uiBtnUp);
+        Drawable over = new TextureRegionDrawable(uiBtnOver);
+        Drawable down = new TextureRegionDrawable(uiBtnDown);
+        TextButton.TextButtonStyle style = new TextButton.TextButtonStyle(up, down, up, font);
+        style.over = over;
+        uiSkin.add("default", style);
+
+        // Game Over panel
+        gameOverTable = new Table();
+        gameOverTable.setFillParent(true);
+        gameOverTable.center();
+
+        Label.LabelStyle labelStyle = new Label.LabelStyle(font, Color.WHITE);
+        Label title = new Label("Game Over", labelStyle);
+        scoreLabel = new Label("Score: 0", labelStyle);
+
+        TextButton restart = new TextButton("Restart", uiSkin);
+        TextButton toMenu = new TextButton("Menu", uiSkin);
+
+        restart.addListener(new ClickListener() {
+            @Override
+            public void clicked(com.badlogic.gdx.scenes.scene2d.InputEvent event, float x, float y) {
+                resetGame();
+                hideGameOver();
+            }
+        });
+        toMenu.addListener(new ClickListener() {
+            @Override
+            public void clicked(com.badlogic.gdx.scenes.scene2d.InputEvent event, float x, float y) {
+                HighScores.submit(score);
+                game.showMenu();
+            }
+        });
+
+        gameOverTable.add(title).padBottom(10).row();
+        gameOverTable.add(scoreLabel).padBottom(16).row();
+        gameOverTable.add(restart).width(240).height(48).pad(6).row();
+        gameOverTable.add(toMenu).width(240).height(48).pad(6).row();
+        gameOverTable.setVisible(false);
+        uiStage.addActor(gameOverTable);
+
+        // Route input to stage (keyboard polling still works via Gdx.input)
+        Gdx.input.setInputProcessor(uiStage);
     }
 
     private void resetGame() {
@@ -91,8 +169,8 @@ public class GameScreen extends ScreenAdapter {
 
         if (!gameOver) {
             updateGame(delta);
-        } else if (handleGameOverInput()) {
-            return;
+        } else {
+            // Update UI and wait for button actions; no immediate return
         }
 
         clearAndSetupProjection();
@@ -106,6 +184,10 @@ public class GameScreen extends ScreenAdapter {
         batch.begin();
         drawHud();
         batch.end();
+
+        // UI overlay
+        uiStage.act(delta);
+        uiStage.draw();
     }
 
     private void updateGame(float delta) {
@@ -146,7 +228,7 @@ public class GameScreen extends ScreenAdapter {
         for (int y = 0; y < GRID_ROWS; y++) {
             for (int x = 0; x < GRID_COLS; x++) {
                 if (((x + y) & 1) == 0) {
-                    shapes.rect(x * CELL_SIZE, y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+                    shapes.rect(originX + x * cellSize, originY + y * cellSize, cellSize, cellSize);
                 }
             }
         }
@@ -155,7 +237,7 @@ public class GameScreen extends ScreenAdapter {
     private void drawFood() {
         if (food == null) return;
         shapes.setColor(Color.SCARLET);
-        shapes.rect(food.x * CELL_SIZE, food.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+        shapes.rect(originX + food.x * cellSize, originY + food.y * cellSize, cellSize, cellSize);
     }
 
     private void drawSnake() {
@@ -164,14 +246,14 @@ public class GameScreen extends ScreenAdapter {
             if (i == 0) shapes.setColor(Color.LIME);
             else shapes.setColor(new Color(0.2f, 0.8f, 0.2f, 1f));
 
-            shapes.rect(p.x * CELL_SIZE, p.y * CELL_SIZE, CELL_SIZE, CELL_SIZE);
+            shapes.rect(originX + p.x * cellSize, originY + p.y * cellSize, cellSize, cellSize);
             i++;
         }
     }
 
     private void drawHud() {
         String text = "Score: " + score + (gameOver ? "  |  Game Over! ENTER=Menu, R=Restart" : "");
-        font.draw(batch, text, 8, GRID_ROWS * CELL_SIZE - 8);
+        font.draw(batch, text, originX + 8, originY + worldHeight - 8);
     }
 
     private void handleInput() {
@@ -192,12 +274,12 @@ public class GameScreen extends ScreenAdapter {
         int nx = head.x + dir.dx;
         int ny = head.y + dir.dy;
         if (nx < 0 || ny < 0 || nx >= GRID_COLS || ny >= GRID_ROWS) {
-            gameOver = true;
+            triggerGameOver();
             return;
         }
         Point newHead = new Point(nx, ny);
         if (snakeSet.contains(newHead)) {
-            gameOver = true;
+            triggerGameOver();
             return;
         }
         snake.addFirst(newHead);
@@ -213,12 +295,63 @@ public class GameScreen extends ScreenAdapter {
 
     @Override
     public void resize(int width, int height) {
-        camera.setToOrtho(false, GRID_COLS * CELL_SIZE, GRID_ROWS * CELL_SIZE);
+        // Determine cell size to fit grid completely into window without scaling
+        cellSize = Math.max(1, Math.min(width / GRID_COLS, height / GRID_ROWS));
+        worldWidth = cellSize * GRID_COLS;
+        worldHeight = cellSize * GRID_ROWS;
+        originX = (width - worldWidth) / 2;
+        originY = (height - worldHeight) / 2;
+
+        // Use window size as camera viewport to avoid post-scaling (crisp rendering)
+        camera.setToOrtho(false, width, height);
+
+        if (uiStage != null) uiStage.getViewport().update(width, height, true);
+    }
+
+    private void triggerGameOver() {
+        gameOver = true;
+        if (scoreLabel != null) {
+            scoreLabel.setText("Score: " + score);
+        }
+        if (gameOverTable != null) gameOverTable.setVisible(true);
+    }
+
+    private void hideGameOver() {
+        gameOver = false;
+        if (gameOverTable != null) gameOverTable.setVisible(false);
     }
 
     @Override
     public void dispose() {
         if (shapes != null) shapes.dispose();
+        if (uiStage != null) uiStage.dispose();
+        if (uiSkin != null) uiSkin.dispose();
+        if (uiBtnUp != null) uiBtnUp.dispose();
+        if (uiBtnOver != null) uiBtnOver.dispose();
+        if (uiBtnDown != null) uiBtnDown.dispose();
+    }
+
+    private Texture makeRoundRectTex(int width, int height, Color color) {
+        Pixmap pm = new Pixmap(width, height, Pixmap.Format.RGBA8888);
+        int r = 10;
+        pm.setColor(0, 0, 0, 0);
+        pm.fill();
+        pm.setColor(color);
+        pm.fillRectangle(r, 0, width - 2 * r, height);
+        pm.fillRectangle(0, r, width, height - 2 * r);
+        for (int dy = -r; dy <= r; dy++) {
+            for (int dx = -r; dx <= r; dx++) {
+                if (dx * dx + dy * dy <= r * r) {
+                    pm.drawPixel(r + dx, r + dy);
+                    pm.drawPixel(width - r - 1 + dx, r + dy);
+                    pm.drawPixel(r + dx, height - r - 1 + dy);
+                    pm.drawPixel(width - r - 1 + dx, height - r - 1 + dy);
+                }
+            }
+        }
+        Texture t = new Texture(pm);
+        pm.dispose();
+        return t;
     }
 
     private enum Direction {

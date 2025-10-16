@@ -10,6 +10,7 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
@@ -25,6 +26,8 @@ public class LevelSelectScreen extends ScreenAdapter {
     private Texture buttonUpTex, buttonOverTex, buttonDownTex;
     private ShapeRenderer shapes;
     private final Level[] levels = Level.values();
+    private Level selected;
+    private Label selectedLabel;
 
     public LevelSelectScreen(MainGame game) {
         this.game = game;
@@ -70,22 +73,47 @@ public class LevelSelectScreen extends ScreenAdapter {
             b.addListener(new ClickListener() {
                 @Override
                 public void clicked(InputEvent event, float x, float y) {
-                    game.startLevel(lvl);
+                    selected = lvl;
+                    updateSelectedLabel();
                 }
             });
             table.add(b).row();
         }
 
+        // Footer panel with Start and Back
+        TextButton start = new TextButton("Start", skin);
         TextButton back = new TextButton("Back", skin);
+
+        start.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                if (selected != null) {
+                    game.startLevel(selected);
+                }
+            }
+        });
         back.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 game.showMenu();
             }
         });
+
+        // Selected label
+        selectedLabel = new Label("Selected: None", new Label.LabelStyle(game.font, com.badlogic.gdx.graphics.Color.WHITE));
+
+        table.add(selectedLabel).width(360).height(32).padTop(12).row();
+        table.add(start).row();
         table.add(back).row();
 
         stage.addActor(table);
+    }
+
+    private void updateSelectedLabel() {
+        if (selectedLabel != null) {
+            String name = selected == null ? "None" : selected.title;
+            selectedLabel.setText("Selected: " + name);
+        }
     }
 
     @Override
@@ -95,6 +123,11 @@ public class LevelSelectScreen extends ScreenAdapter {
         drawMeadowBackground();
         stage.act(delta);
         stage.draw();
+    }
+
+    @Override
+    public void resize(int width, int height) {
+        if (stage != null) stage.getViewport().update(width, height, true);
     }
 
     private void drawMeadowBackground() {

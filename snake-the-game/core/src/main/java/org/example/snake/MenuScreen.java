@@ -28,6 +28,7 @@ public class MenuScreen extends ScreenAdapter {
     private Skin skin;
     private Texture buttonUpTex, buttonOverTex, buttonDownTex;
     private ShapeRenderer shapes;
+    private Texture snakeImage;
 
     public MenuScreen(MainGame game) {
         this.game = game;
@@ -63,6 +64,8 @@ public class MenuScreen extends ScreenAdapter {
         TextButton.TextButtonStyle style = new TextButton.TextButtonStyle(up, down, up, font);
         style.over = over;
         skin.add("default", style);
+        // Create decorative snake image
+        snakeImage = makeSnakeImage(360, 100);
     }
 
     private void buildMenuTable() {
@@ -73,6 +76,7 @@ public class MenuScreen extends ScreenAdapter {
         TextButton play = new TextButton("Play", skin);
         TextButton scores = new TextButton("High Scores", skin);
         TextButton exit = new TextButton("Exit", skin);
+        TextButton settings = new TextButton("Settings", skin);
 
         play.addListener(new ClickListener() {
             @Override
@@ -86,6 +90,12 @@ public class MenuScreen extends ScreenAdapter {
                 game.showHighScores();
             }
         });
+        settings.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                game.showSettings();
+            }
+        });
         exit.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -95,6 +105,7 @@ public class MenuScreen extends ScreenAdapter {
 
         table.add(play).row();
         table.add(scores).row();
+            table.add(settings).row();
         table.add(exit).row();
 
         stage.addActor(table);
@@ -106,10 +117,23 @@ public class MenuScreen extends ScreenAdapter {
         ScreenUtils.clear(0.07f, 0.07f, 0.1f, 1f);
         drawMeadowBackground();
         batch.begin();
-        font.draw(batch, "Snake (LibGDX)", 20, GameScreen.GRID_ROWS * GameScreen.CELL_SIZE - 20);
+        font.draw(batch, "Snake (LibGDX)", 20, Gdx.graphics.getHeight() - 20);
+        if (snakeImage != null) {
+            int w = Gdx.graphics.getWidth();
+            float imgW = Math.min(480, w * 0.8f);
+            float imgH = snakeImage.getHeight() * (imgW / snakeImage.getWidth());
+            float x = (w - imgW) / 2f;
+            float y = Gdx.graphics.getHeight() - imgH - 40;
+            batch.draw(snakeImage, x, y, imgW, imgH);
+        }
         batch.end();
         stage.act(delta);
         stage.draw();
+    }
+
+    @Override
+    public void resize(int width, int height) {
+        if (stage != null) stage.getViewport().update(width, height, true);
     }
 
     private void drawMeadowBackground() {
@@ -187,6 +211,36 @@ public class MenuScreen extends ScreenAdapter {
         if (buttonUpTex != null) buttonUpTex.dispose();
         if (buttonOverTex != null) buttonOverTex.dispose();
         if (buttonDownTex != null) buttonDownTex.dispose();
+        if (snakeImage != null) snakeImage.dispose();
         if (shapes != null) shapes.dispose();
+    }
+
+    private Texture makeSnakeImage(int width, int height) {
+        Pixmap pm = new Pixmap(width, height, Pixmap.Format.RGBA8888);
+        pm.setColor(0, 0, 0, 0);
+        pm.fill();
+        int s = Math.max(6, height / 8);
+        int margin = s;
+        int y = height / 2;
+        for (int i = 0; i < (width - 2 * margin) / (s + 6); i++) {
+            float t = i / 6f;
+            int yy = (int) (y + Math.sin(t * 2.2) * (height * 0.2));
+            pm.setColor(0.18f, 0.8f, 0.2f, 1f);
+            pm.fillRectangle(margin + i * (s + 6), yy - s / 2, s, s);
+        }
+        // Head
+        pm.setColor(0.15f, 0.7f, 0.18f, 1f);
+        pm.fillRectangle(width - margin - s, y - s / 2, s, s);
+        // Eyes
+        pm.setColor(0, 0, 0, 1);
+        pm.fillRectangle(width - margin - s + 3, y + s / 2 - 6, 3, 3);
+        pm.fillRectangle(width - margin - s + 7, y + s / 2 - 6, 3, 3);
+        // Tongue
+        pm.setColor(1f, 0.3f, 0.4f, 1f);
+        pm.fillRectangle(width - margin - 2, y - 2, 4, 4);
+
+        Texture t = new Texture(pm);
+        pm.dispose();
+        return t;
     }
 }

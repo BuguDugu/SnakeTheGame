@@ -18,16 +18,30 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 
-import java.util.List;
-
-public class HighScoresScreen extends ScreenAdapter {
+/**
+ * Simple Settings screen to adjust resolution and fullscreen.
+ */
+public class SettingsScreen extends ScreenAdapter {
     private final MainGame game;
     private Stage stage;
     private Skin skin;
     private Texture buttonUpTex, buttonOverTex, buttonDownTex;
     private ShapeRenderer shapes;
 
-    public HighScoresScreen(MainGame game) {
+    private final int[][] resolutions = new int[][]{
+            {800, 600},
+            {1024, 768},
+            {1280, 720},
+            {1600, 900},
+            {1920, 1080}
+    };
+    private int selectedIndex = 2; // default 1280x720
+    private boolean fullscreen = false;
+
+    private TextButton resolutionBtn;
+    private TextButton fullscreenBtn;
+
+    public SettingsScreen(MainGame game) {
         this.game = game;
     }
 
@@ -35,7 +49,7 @@ public class HighScoresScreen extends ScreenAdapter {
     public void show() {
         setupStageAndSkin();
         createButtonTextures();
-        buildFooterButtons();
+        buildUi();
         Gdx.input.setInputProcessor(stage);
     }
 
@@ -48,9 +62,9 @@ public class HighScoresScreen extends ScreenAdapter {
     }
 
     private void createButtonTextures() {
-        buttonUpTex = makeRoundRectTex(300, 40, new Color(0.85f, 0.7f, 0.15f, 1f));
-        buttonOverTex = makeRoundRectTex(300, 40, new Color(0.95f, 0.8f, 0.25f, 1f));
-        buttonDownTex = makeRoundRectTex(300, 40, new Color(0.75f, 0.6f, 0.12f, 1f));
+        buttonUpTex = makeRoundRectTex(360, 44, new Color(0.6f, 0.5f, 0.85f, 1f));
+        buttonOverTex = makeRoundRectTex(360, 44, new Color(0.72f, 0.62f, 0.95f, 1f));
+        buttonDownTex = makeRoundRectTex(360, 44, new Color(0.5f, 0.42f, 0.75f, 1f));
 
         Drawable up = new TextureRegionDrawable(buttonUpTex);
         Drawable over = new TextureRegionDrawable(buttonOverTex);
@@ -61,76 +75,96 @@ public class HighScoresScreen extends ScreenAdapter {
         skin.add("default", style);
     }
 
-    private void buildFooterButtons() {
+    private void buildUi() {
         Table table = new Table();
         table.setFillParent(true);
-        table.bottom().pad(12);
+        table.defaults().width(360).height(44).pad(8);
+
+        resolutionBtn = new TextButton(currentResolutionLabel(), skin);
+        resolutionBtn.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                selectedIndex = (selectedIndex + 1) % resolutions.length;
+                resolutionBtn.setText(currentResolutionLabel());
+            }
+        });
+
+        fullscreenBtn = new TextButton(fullscreenLabel(), skin);
+        fullscreenBtn.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                fullscreen = !fullscreen;
+                fullscreenBtn.setText(fullscreenLabel());
+            }
+        });
+
+        TextButton apply = new TextButton("Apply", skin);
+        apply.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                applyResolution();
+            }
+        });
 
         TextButton back = new TextButton("Back", skin);
-        TextButton clear = new TextButton("Clear", skin);
-
         back.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 game.showMenu();
             }
         });
-        clear.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                HighScores.clearAll();
-            }
-        });
 
-        table.add(back).width(140).height(40).padRight(8);
-        table.add(clear).width(140).height(40).padLeft(8);
+        table.add(resolutionBtn).row();
+        table.add(fullscreenBtn).row();
+        table.add(apply).row();
+        table.add(back).row();
 
         stage.addActor(table);
     }
 
+    private void applyResolution() {
+        int appliedW;
+        int appliedH;
+        if (fullscreen) {
+            // Apply current display mode fullscreen
+            com.badlogic.gdx.Graphics.DisplayMode dm = Gdx.graphics.getDisplayMode();
+            Gdx.graphics.setFullscreenMode(dm);
+            appliedW = dm.width;
+            appliedH = dm.height;
+        } else {
+            int[] r = resolutions[selectedIndex];
+            Gdx.graphics.setWindowedMode(r[0], r[1]);
+            appliedW = r[0];
+            appliedH = r[1];
+        }
+        // Persist user choice for next launch
+        com.badlogic.gdx.Preferences prefs = Gdx.app.getPreferences("settings");
+        prefs.putInteger("width", appliedW);
+        prefs.putInteger("height", appliedH);
+        prefs.putBoolean("fullscreen", fullscreen);
+        prefs.flush();
+    }
+
+    private String currentResolutionLabel() {
+        int[] r = resolutions[selectedIndex];
+        return "Resolution: " + r[0] + "x" + r[1];
+    }
+
+    private String fullscreenLabel() {
+        return "Fullscreen: " + (fullscreen ? "On" : "Off");
+    }
+
     @Override
     public void render(float delta) {
-        if (handleBackKeys()) return;
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            game.showMenu();
+            return;
+        }
 
         ScreenUtils.clear(0.07f, 0.07f, 0.1f, 1f);
-        drawMeadowBackground();
-
-        game.batch.begin();
-        drawScoresList();
-        game.batch.end();
-
+        drawBackground();
         stage.act(delta);
         stage.draw();
-    }
-
-    private boolean handleBackKeys() {
-        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE) || Gdx.input.isKeyJustPressed(Input.Keys.ENTER)) {
-            game.showMenu();
-            return true;
-        }
-        return false;
-    }
-
-    private void drawScoresList() {
-        game.font.draw(game.batch, "High Scores (Top 10)", 20, Gdx.graphics.getHeight() - 20);
-
-        List<Integer> list = HighScores.top();
-        int startY = Gdx.graphics.getHeight() - 80;
-
-        if (list.isEmpty()) {
-            game.font.draw(game.batch, "No scores yet", 64, startY);
-        } else {
-            for (int i = 0; i < list.size(); i++) {
-                float y = startY - i * 26;
-                drawMedal(i, 40, (int) y - 18);
-
-                game.font.setColor(Color.WHITE);
-                game.font.draw(game.batch, (i + 1) + ". " + list.get(i), 72, y);
-            }
-        }
-
-        game.font.setColor(Color.WHITE);
-        game.font.draw(game.batch, "ENTER/ESC to back or use Back; Clear to reset", 20, 64);
     }
 
     @Override
@@ -138,7 +172,7 @@ public class HighScoresScreen extends ScreenAdapter {
         if (stage != null) stage.getViewport().update(width, height, true);
     }
 
-    private void drawMeadowBackground() {
+    private void drawBackground() {
         int w = Gdx.graphics.getWidth();
         int h = Gdx.graphics.getHeight();
         shapes.begin(ShapeRenderer.ShapeType.Filled);
@@ -153,21 +187,6 @@ public class HighScoresScreen extends ScreenAdapter {
                 if (((x + y) / 24) % 2 == 0) shapes.rect(x, y, 24, 24);
             }
         }
-        shapes.end();
-    }
-
-    private void drawMedal(int index, int x, int y) {
-        Color c;
-        if (index == 0) c = new Color(1f, 0.84f, 0f, 1f);
-        else if (index == 1) c = new Color(0.75f, 0.75f, 0.75f, 1f);
-        else if (index == 2) c = new Color(0.8f, 0.5f, 0.2f, 1f);
-        else c = new Color(0.2f, 0.6f, 1f, 1f);
-        shapes.begin(ShapeRenderer.ShapeType.Filled);
-        shapes.setColor(c);
-        shapes.rect(x, y, 20, 20);
-        shapes.setColor(Color.DARK_GRAY);
-        shapes.rect(x + 4, y + 20, 4, 8);
-        shapes.rect(x + 12, y + 20, 4, 8);
         shapes.end();
     }
 
