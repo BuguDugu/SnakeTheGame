@@ -1,4 +1,4 @@
-package org.example.snake;
+package org.example.snake.game;
 
 public enum Level {
     LEVEL_1("Level 1 - Slow", 0.20f),
