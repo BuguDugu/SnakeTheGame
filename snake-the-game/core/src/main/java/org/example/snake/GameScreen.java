@@ -349,6 +349,7 @@ public class GameScreen extends ScreenAdapter {
                 }
             }
         }
+
         Texture t = new Texture(pm);
         pm.dispose();
         return t;
