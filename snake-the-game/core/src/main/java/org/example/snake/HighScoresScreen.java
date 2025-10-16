@@ -95,8 +95,10 @@ public class HighScoresScreen extends ScreenAdapter {
         ScreenUtils.clear(0.07f, 0.07f, 0.1f, 1f);
         drawMeadowBackground();
 
+        List<Integer> list = HighScores.top();
+        drawMedals(list);
         game.batch.begin();
-        drawScoresList();
+        drawScoresList(list);
         game.batch.end();
 
         stage.act(delta);
@@ -111,19 +113,17 @@ public class HighScoresScreen extends ScreenAdapter {
         return false;
     }
 
-    private void drawScoresList() {
+    private void drawScoresList(List<Integer> list) {
         game.font.draw(game.batch, "High Scores (Top 10)", 20, Gdx.graphics.getHeight() - 20);
 
-        List<Integer> list = HighScores.top();
         int startY = Gdx.graphics.getHeight() - 80;
 
         if (list.isEmpty()) {
+            game.font.setColor(Color.WHITE);
             game.font.draw(game.batch, "No scores yet", 64, startY);
         } else {
             for (int i = 0; i < list.size(); i++) {
                 float y = startY - i * 26;
-                drawMedal(i, 40, (int) y - 18);
-
                 game.font.setColor(Color.WHITE);
                 game.font.draw(game.batch, (i + 1) + ". " + list.get(i), 72, y);
             }
@@ -147,12 +147,6 @@ public class HighScoresScreen extends ScreenAdapter {
             shapes.setColor(new Color(0.08f + 0.12f * t, 0.35f + 0.45f * t, 0.08f, 1f));
             shapes.rect(0, y, w, 16);
         }
-        shapes.setColor(new Color(0.0f, 0.1f, 0.0f, 0.12f));
-        for (int y = 0; y < h; y += 24) {
-            for (int x = 0; x < w; x += 24) {
-                if (((x + y) / 24) % 2 == 0) shapes.rect(x, y, 24, 24);
-            }
-        }
         shapes.end();
     }
 
@@ -162,12 +156,21 @@ public class HighScoresScreen extends ScreenAdapter {
         else if (index == 1) c = new Color(0.75f, 0.75f, 0.75f, 1f);
         else if (index == 2) c = new Color(0.8f, 0.5f, 0.2f, 1f);
         else c = new Color(0.2f, 0.6f, 1f, 1f);
-        shapes.begin(ShapeRenderer.ShapeType.Filled);
         shapes.setColor(c);
         shapes.rect(x, y, 20, 20);
         shapes.setColor(Color.DARK_GRAY);
         shapes.rect(x + 4, y + 20, 4, 8);
         shapes.rect(x + 12, y + 20, 4, 8);
+    }
+
+    private void drawMedals(List<Integer> list) {
+        if (list == null || list.isEmpty()) return;
+        int startY = Gdx.graphics.getHeight() - 80;
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        for (int i = 0; i < list.size(); i++) {
+            float y = startY - i * 26;
+            drawMedal(i, 40, (int) y - 18);
+        }
         shapes.end();
     }
 

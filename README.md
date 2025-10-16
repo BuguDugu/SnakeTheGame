@@ -9,9 +9,7 @@ Highlights ✨
 - 🌿 Fresh menu visuals: styled buttons and a meadow background with a cute cartoon snake
 
 Controls ⌨️
-- Menus: UP/DOWN to navigate, ENTER to select, ESC to go back
-- In game: Arrow keys or WASD to move
-- Game Over: ENTER — back to Menu (score saved), R — restart same level
+- In game: Arrow keys or WASD to move, SPACE to speed up (only in 1 and 2 levels)
 
 Quick start ⚡
 1) Build all modules:

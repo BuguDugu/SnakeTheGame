@@ -80,7 +80,6 @@ public class LevelSelectScreen extends ScreenAdapter {
             table.add(b).row();
         }
 
-        // Footer panel with Start and Back
         TextButton start = new TextButton("Start", skin);
         TextButton back = new TextButton("Back", skin);
 
@@ -99,7 +98,6 @@ public class LevelSelectScreen extends ScreenAdapter {
             }
         });
 
-        // Selected label
         selectedLabel = new Label("Selected: None", new Label.LabelStyle(game.font, com.badlogic.gdx.graphics.Color.WHITE));
 
         table.add(selectedLabel).width(360).height(32).padTop(12).row();
