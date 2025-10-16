@@ -18,9 +18,6 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 
-/**
- * Simple Settings screen to adjust resolution and fullscreen.
- */
 public class SettingsScreen extends ScreenAdapter {
     private final MainGame game;
     private Stage stage;
@@ -126,7 +123,6 @@ public class SettingsScreen extends ScreenAdapter {
         int appliedW;
         int appliedH;
         if (fullscreen) {
-            // Apply current display mode fullscreen
             com.badlogic.gdx.Graphics.DisplayMode dm = Gdx.graphics.getDisplayMode();
             Gdx.graphics.setFullscreenMode(dm);
             appliedW = dm.width;
@@ -180,12 +176,6 @@ public class SettingsScreen extends ScreenAdapter {
             float t = (float) y / h;
             shapes.setColor(new Color(0.08f + 0.12f * t, 0.35f + 0.45f * t, 0.08f, 1f));
             shapes.rect(0, y, w, 16);
-        }
-        shapes.setColor(new Color(0.0f, 0.1f, 0.0f, 0.12f));
-        for (int y = 0; y < h; y += 24) {
-            for (int x = 0; x < w; x += 24) {
-                if (((x + y) / 24) % 2 == 0) shapes.rect(x, y, 24, 24);
-            }
         }
         shapes.end();
     }

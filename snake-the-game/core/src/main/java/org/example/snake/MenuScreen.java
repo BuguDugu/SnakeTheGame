@@ -29,6 +29,7 @@ public class MenuScreen extends ScreenAdapter {
     private Texture buttonUpTex, buttonOverTex, buttonDownTex;
     private ShapeRenderer shapes;
     private Texture snakeImage;
+    private Texture backgroundTex;
 
     public MenuScreen(MainGame game) {
         this.game = game;
@@ -41,6 +42,7 @@ public class MenuScreen extends ScreenAdapter {
         setupStageAndSkin();
         createButtonTextures();
         buildMenuTable();
+        loadBackgroundTexture();
         Gdx.input.setInputProcessor(stage);
     }
 
@@ -64,7 +66,6 @@ public class MenuScreen extends ScreenAdapter {
         TextButton.TextButtonStyle style = new TextButton.TextButtonStyle(up, down, up, font);
         style.over = over;
         skin.add("default", style);
-        // Create decorative snake image
         snakeImage = makeSnakeImage(360, 100);
     }
 
@@ -111,22 +112,56 @@ public class MenuScreen extends ScreenAdapter {
         stage.addActor(table);
     }
 
+    private void loadBackgroundTexture() {
+        try {
+            // Use only this resource from classpath
+            final String path = "menu_snake.png";
+            if (Gdx.files != null && Gdx.files.classpath(path).exists()) {
+                backgroundTex = new Texture(Gdx.files.classpath(path));
+                backgroundTex.setFilter(Texture.TextureFilter.Linear, Texture.TextureFilter.Linear);
+            }
+        } catch (Throwable ignored) { }
+    }
+
     @Override
     public void render(float delta) {
         handleInput();
         ScreenUtils.clear(0.07f, 0.07f, 0.1f, 1f);
-        drawMeadowBackground();
-        batch.begin();
-        font.draw(batch, "Snake (LibGDX)", 20, Gdx.graphics.getHeight() - 20);
-        if (snakeImage != null) {
+
+        boolean drewImageBackground = false;
+        if (backgroundTex != null) {
             int w = Gdx.graphics.getWidth();
-            float imgW = Math.min(480, w * 0.8f);
-            float imgH = snakeImage.getHeight() * (imgW / snakeImage.getWidth());
-            float x = (w - imgW) / 2f;
-            float y = Gdx.graphics.getHeight() - imgH - 40;
-            batch.draw(snakeImage, x, y, imgW, imgH);
+            int h = Gdx.graphics.getHeight();
+            float texW = backgroundTex.getWidth();
+            float texH = backgroundTex.getHeight();
+            float scale = Math.max(w / texW, h / texH);
+            float drawW = texW * scale;
+            float drawH = texH * scale;
+            float x = (w - drawW) / 2f;
+            float y = (h - drawH) / 2f;
+            batch.begin();
+            batch.draw(backgroundTex, x, y, drawW, drawH);
+            // Title over background
+            font.draw(batch, "Snake", 20, Gdx.graphics.getHeight() - 20);
+            batch.end();
+            drewImageBackground = true;
         }
-        batch.end();
+        if (!drewImageBackground) {
+            // Fallback to procedural meadow background
+            drawMeadowBackground();
+            batch.begin();
+            font.draw(batch, "Snake (LibGDX)", 20, Gdx.graphics.getHeight() - 20);
+            // Decorative snake only when no background image
+            if (snakeImage != null) {
+                int w = Gdx.graphics.getWidth();
+                float imgW = Math.min(480, w * 0.8f);
+                float imgH = snakeImage.getHeight() * (imgW / snakeImage.getWidth());
+                float x = (w - imgW) / 2f;
+                float y = Gdx.graphics.getHeight() - imgH - 40;
+                batch.draw(snakeImage, x, y, imgW, imgH);
+            }
+            batch.end();
+        }
         stage.act(delta);
         stage.draw();
     }
@@ -145,28 +180,7 @@ public class MenuScreen extends ScreenAdapter {
             shapes.setColor(new Color(0.08f + 0.12f * t, 0.35f + 0.45f * t, 0.08f, 1f));
             shapes.rect(0, y, w, 16);
         }
-        shapes.setColor(new Color(0.0f, 0.1f, 0.0f, 0.12f));
-        for (int y = 0; y < h; y += 24) {
-            for (int x = 0; x < w; x += 24) {
-                if (((x + y) / 24) % 2 == 0) shapes.rect(x, y, 24, 24);
-            }
-        }
-        float cx = w * 0.75f;
-        float cy = h * 0.35f;
-        float s = 12f;
-        shapes.setColor(new Color(0.18f, 0.8f, 0.2f, 1f));
-        for (int i = 0; i < 18; i++) {
-            float px = cx - i * s * 1.2f;
-            float py = cy + (float) Math.sin(i * 0.6f) * 10f;
-            shapes.rect(px, py, s, s);
-        }
-        shapes.setColor(new Color(0.15f, 0.7f, 0.18f, 1f));
-        shapes.rect(cx, cy, s, s);
-        shapes.setColor(Color.BLACK);
-        shapes.rect(cx + 3, cy + s - 6, 3, 3);
-        shapes.rect(cx + 7, cy + s - 6, 3, 3);
-        shapes.setColor(Color.PINK);
-        shapes.rect(cx + s - 3, cy + s / 2f - 2, 4, 4);
+        // No checkerboard or extra decoration; plain gradient fallback only
         shapes.end();
     }
 
@@ -212,6 +226,7 @@ public class MenuScreen extends ScreenAdapter {
         if (buttonOverTex != null) buttonOverTex.dispose();
         if (buttonDownTex != null) buttonDownTex.dispose();
         if (snakeImage != null) snakeImage.dispose();
+        if (backgroundTex != null) backgroundTex.dispose();
         if (shapes != null) shapes.dispose();
     }
 

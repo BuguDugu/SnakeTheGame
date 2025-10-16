@@ -35,7 +35,6 @@ public class GameScreen extends ScreenAdapter {
     private SpriteBatch batch;
     private BitmapFont font;
 
-    // Dynamic layout
     private int cellSize;
     private int originX;
     private int originY;
@@ -53,7 +52,6 @@ public class GameScreen extends ScreenAdapter {
     private boolean gameOver = false;
     private int score = 0;
 
-    // UI overlay for game over
     private Stage uiStage;
     private Skin uiSkin;
     private Texture uiBtnUp, uiBtnOver, uiBtnDown;
@@ -73,7 +71,6 @@ public class GameScreen extends ScreenAdapter {
         batch = game.batch;
         font = game.font;
         rng = new Random();
-        // Initialize layout based on current window
         resize(Gdx.graphics.getWidth(), Gdx.graphics.getHeight());
         setupUi();
         resetGame();
@@ -95,7 +92,6 @@ public class GameScreen extends ScreenAdapter {
         style.over = over;
         uiSkin.add("default", style);
 
-        // Game Over panel
         gameOverTable = new Table();
         gameOverTable.setFillParent(true);
         gameOverTable.center();
@@ -129,7 +125,6 @@ public class GameScreen extends ScreenAdapter {
         gameOverTable.setVisible(false);
         uiStage.addActor(gameOverTable);
 
-        // Route input to stage (keyboard polling still works via Gdx.input)
         Gdx.input.setInputProcessor(uiStage);
     }
 
@@ -169,8 +164,6 @@ public class GameScreen extends ScreenAdapter {
 
         if (!gameOver) {
             updateGame(delta);
-        } else {
-            // Update UI and wait for button actions; no immediate return
         }
 
         clearAndSetupProjection();
@@ -185,14 +178,13 @@ public class GameScreen extends ScreenAdapter {
         drawHud();
         batch.end();
 
-        // UI overlay
         uiStage.act(delta);
         uiStage.draw();
     }
 
     private void updateGame(float delta) {
         accumulator += delta;
-        tickAccumulator();
+        tickAccumulator(getEffectiveStepTime());
     }
 
     private boolean handleGameOverInput() {
@@ -207,11 +199,20 @@ public class GameScreen extends ScreenAdapter {
         return false;
     }
 
-    private void tickAccumulator() {
-        while (accumulator >= level.stepTime) {
+    private void tickAccumulator(float stepTime) {
+        while (accumulator >= stepTime) {
             step();
-            accumulator -= level.stepTime;
+            accumulator -= stepTime;
         }
+    }
+
+    private float getEffectiveStepTime() {
+        float st = level.stepTime;
+        if ((level == Level.LEVEL_1 || level == Level.LEVEL_2)
+                && Gdx.input.isKeyPressed(Input.Keys.SPACE)) {
+            st = Level.LEVEL_3.stepTime;
+        }
+        return st;
     }
 
     private void clearAndSetupProjection() {
@@ -252,7 +253,10 @@ public class GameScreen extends ScreenAdapter {
     }
 
     private void drawHud() {
-        String text = "Score: " + score + (gameOver ? "  |  Game Over! ENTER=Menu, R=Restart" : "");
+        if (gameOver) {
+            return;
+        }
+        String text = "Score: " + score;
         font.draw(batch, text, originX + 8, originY + worldHeight - 8);
     }
 
@@ -295,14 +299,12 @@ public class GameScreen extends ScreenAdapter {
 
     @Override
     public void resize(int width, int height) {
-        // Determine cell size to fit grid completely into window without scaling
         cellSize = Math.max(1, Math.min(width / GRID_COLS, height / GRID_ROWS));
         worldWidth = cellSize * GRID_COLS;
         worldHeight = cellSize * GRID_ROWS;
         originX = (width - worldWidth) / 2;
         originY = (height - worldHeight) / 2;
 
-        // Use window size as camera viewport to avoid post-scaling (crisp rendering)
         camera.setToOrtho(false, width, height);
 
         if (uiStage != null) uiStage.getViewport().update(width, height, true);
