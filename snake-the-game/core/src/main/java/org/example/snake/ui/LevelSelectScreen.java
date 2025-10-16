@@ -1,4 +1,4 @@
-package org.example.snake;
+package org.example.snake.ui;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -10,6 +10,7 @@ import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
 import com.badlogic.gdx.scenes.scene2d.InputEvent;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
+import com.badlogic.gdx.scenes.scene2d.ui.Label;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
 import com.badlogic.gdx.scenes.scene2d.ui.TextButton;
 import com.badlogic.gdx.scenes.scene2d.utils.ClickListener;
@@ -18,27 +19,20 @@ import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 
-public class SettingsScreen extends ScreenAdapter {
+import org.example.snake.MainGame;
+import org.example.snake.game.Level;
+
+public class LevelSelectScreen extends ScreenAdapter {
     private final MainGame game;
     private Stage stage;
     private Skin skin;
     private Texture buttonUpTex, buttonOverTex, buttonDownTex;
     private ShapeRenderer shapes;
+    private final Level[] levels = Level.values();
+    private Level selected;
+    private Label selectedLabel;
 
-    private final int[][] resolutions = new int[][]{
-            {800, 600},
-            {1024, 768},
-            {1280, 720},
-            {1600, 900},
-            {1920, 1080}
-    };
-    private int selectedIndex = 2; // default 1280x720
-    private boolean fullscreen = false;
-
-    private TextButton resolutionBtn;
-    private TextButton fullscreenBtn;
-
-    public SettingsScreen(MainGame game) {
+    public LevelSelectScreen(MainGame game) {
         this.game = game;
     }
 
@@ -46,7 +40,7 @@ public class SettingsScreen extends ScreenAdapter {
     public void show() {
         setupStageAndSkin();
         createButtonTextures();
-        buildUi();
+        buildLevelTable();
         Gdx.input.setInputProcessor(stage);
     }
 
@@ -59,9 +53,9 @@ public class SettingsScreen extends ScreenAdapter {
     }
 
     private void createButtonTextures() {
-        buttonUpTex = makeRoundRectTex(360, 44, new Color(0.6f, 0.5f, 0.85f, 1f));
-        buttonOverTex = makeRoundRectTex(360, 44, new Color(0.72f, 0.62f, 0.95f, 1f));
-        buttonDownTex = makeRoundRectTex(360, 44, new Color(0.5f, 0.42f, 0.75f, 1f));
+        buttonUpTex = makeRoundRectTex(360, 44, new Color(0.15f, 0.6f, 0.8f, 1f));
+        buttonOverTex = makeRoundRectTex(360, 44, new Color(0.20f, 0.75f, 0.95f, 1f));
+        buttonDownTex = makeRoundRectTex(360, 44, new Color(0.10f, 0.5f, 0.68f, 1f));
 
         Drawable up = new TextureRegionDrawable(buttonUpTex);
         Drawable over = new TextureRegionDrawable(buttonOverTex);
@@ -72,38 +66,34 @@ public class SettingsScreen extends ScreenAdapter {
         skin.add("default", style);
     }
 
-    private void buildUi() {
+    private void buildLevelTable() {
         Table table = new Table();
         table.setFillParent(true);
-        table.defaults().width(360).height(44).pad(8);
+        table.defaults().width(360).height(44).pad(6);
 
-        resolutionBtn = new TextButton(currentResolutionLabel(), skin);
-        resolutionBtn.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                selectedIndex = (selectedIndex + 1) % resolutions.length;
-                resolutionBtn.setText(currentResolutionLabel());
-            }
-        });
+        for (Level lvl : levels) {
+            TextButton b = new TextButton(lvl.title, skin);
+            b.addListener(new ClickListener() {
+                @Override
+                public void clicked(InputEvent event, float x, float y) {
+                    selected = lvl;
+                    updateSelectedLabel();
+                }
+            });
+            table.add(b).row();
+        }
 
-        fullscreenBtn = new TextButton(fullscreenLabel(), skin);
-        fullscreenBtn.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                fullscreen = !fullscreen;
-                fullscreenBtn.setText(fullscreenLabel());
-            }
-        });
-
-        TextButton apply = new TextButton("Apply", skin);
-        apply.addListener(new ClickListener() {
-            @Override
-            public void clicked(InputEvent event, float x, float y) {
-                applyResolution();
-            }
-        });
-
+        TextButton start = new TextButton("Start", skin);
         TextButton back = new TextButton("Back", skin);
+
+        start.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                if (selected != null) {
+                    game.startLevel(selected);
+                }
+            }
+        });
         back.addListener(new ClickListener() {
             @Override
             public void clicked(InputEvent event, float x, float y) {
@@ -111,54 +101,27 @@ public class SettingsScreen extends ScreenAdapter {
             }
         });
 
-        table.add(resolutionBtn).row();
-        table.add(fullscreenBtn).row();
-        table.add(apply).row();
+        selectedLabel = new Label("Selected: None", new Label.LabelStyle(game.font, com.badlogic.gdx.graphics.Color.WHITE));
+
+        table.add(selectedLabel).width(360).height(32).padTop(12).row();
+        table.add(start).row();
         table.add(back).row();
 
         stage.addActor(table);
     }
 
-    private void applyResolution() {
-        int appliedW;
-        int appliedH;
-        if (fullscreen) {
-            com.badlogic.gdx.Graphics.DisplayMode dm = Gdx.graphics.getDisplayMode();
-            Gdx.graphics.setFullscreenMode(dm);
-            appliedW = dm.width;
-            appliedH = dm.height;
-        } else {
-            int[] r = resolutions[selectedIndex];
-            Gdx.graphics.setWindowedMode(r[0], r[1]);
-            appliedW = r[0];
-            appliedH = r[1];
+    private void updateSelectedLabel() {
+        if (selectedLabel != null) {
+            String name = selected == null ? "None" : selected.title;
+            selectedLabel.setText("Selected: " + name);
         }
-        // Persist user choice for next launch
-        com.badlogic.gdx.Preferences prefs = Gdx.app.getPreferences("settings");
-        prefs.putInteger("width", appliedW);
-        prefs.putInteger("height", appliedH);
-        prefs.putBoolean("fullscreen", fullscreen);
-        prefs.flush();
-    }
-
-    private String currentResolutionLabel() {
-        int[] r = resolutions[selectedIndex];
-        return "Resolution: " + r[0] + "x" + r[1];
-    }
-
-    private String fullscreenLabel() {
-        return "Fullscreen: " + (fullscreen ? "On" : "Off");
     }
 
     @Override
     public void render(float delta) {
-        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
-            game.showMenu();
-            return;
-        }
-
+        handleInput();
         ScreenUtils.clear(0.07f, 0.07f, 0.1f, 1f);
-        drawBackground();
+        drawMeadowBackground();
         stage.act(delta);
         stage.draw();
     }
@@ -168,14 +131,21 @@ public class SettingsScreen extends ScreenAdapter {
         if (stage != null) stage.getViewport().update(width, height, true);
     }
 
-    private void drawBackground() {
+    private void drawMeadowBackground() {
         int w = Gdx.graphics.getWidth();
         int h = Gdx.graphics.getHeight();
+        if (shapes == null) return;
         shapes.begin(ShapeRenderer.ShapeType.Filled);
         for (int y = 0; y < h; y += 16) {
             float t = (float) y / h;
             shapes.setColor(new Color(0.08f + 0.12f * t, 0.35f + 0.45f * t, 0.08f, 1f));
             shapes.rect(0, y, w, 16);
+        }
+        shapes.setColor(new Color(0.0f, 0.1f, 0.0f, 0.12f));
+        for (int y = 0; y < h; y += 24) {
+            for (int x = 0; x < w; x += 24) {
+                if (((x + y) / 24) % 2 == 0) shapes.rect(x, y, 24, 24);
+            }
         }
         shapes.end();
     }
@@ -201,6 +171,12 @@ public class SettingsScreen extends ScreenAdapter {
         Texture t = new Texture(pm);
         pm.dispose();
         return t;
+    }
+
+    private void handleInput() {
+        if (Gdx.input.isKeyJustPressed(Input.Keys.ESCAPE)) {
+            game.showMenu();
+        }
     }
 
     @Override

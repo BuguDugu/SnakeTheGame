@@ -8,9 +8,16 @@ import com.badlogic.gdx.graphics.g2d.freetype.FreeTypeFontGenerator;
 import com.badlogic.gdx.graphics.Texture.TextureFilter;
 import com.badlogic.gdx.graphics.g2d.TextureRegion;
 
+import org.example.snake.game.Level;
+import org.example.snake.game.GameScreen;
+import org.example.snake.ui.MenuScreen;
+import org.example.snake.ui.LevelSelectScreen;
+import org.example.snake.ui.HighScoresScreen;
+import org.example.snake.ui.SettingsScreen;
+
 public class MainGame extends Game {
-    SpriteBatch batch;
-    BitmapFont font;
+    public SpriteBatch batch;
+    public BitmapFont font;
 
     @Override
     public void create() {
@@ -27,23 +34,23 @@ public class MainGame extends Game {
         font.dispose();
     }
 
-    void startLevel(Level level) {
+    public void startLevel(Level level) {
         setScreen(new GameScreen(this, level));
     }
 
-    void showMenu() {
+    public void showMenu() {
         setScreen(new MenuScreen(this));
     }
 
-    void showLevelSelect() {
+    public void showLevelSelect() {
         setScreen(new LevelSelectScreen(this));
     }
 
-    void showHighScores() {
+    public void showHighScores() {
         setScreen(new HighScoresScreen(this));
     }
 
-    void showSettings() {
+    public void showSettings() {
         setScreen(new SettingsScreen(this));
     }
 

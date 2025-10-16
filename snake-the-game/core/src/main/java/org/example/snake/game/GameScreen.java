@@ -1,4 +1,4 @@
-package org.example.snake;
+package org.example.snake.game;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -11,6 +11,8 @@ import com.badlogic.gdx.graphics.Texture;
 import com.badlogic.gdx.graphics.g2d.BitmapFont;
 import com.badlogic.gdx.graphics.g2d.SpriteBatch;
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer;
+import com.badlogic.gdx.math.MathUtils;
+import com.badlogic.gdx.math.Vector2;
 import com.badlogic.gdx.scenes.scene2d.Stage;
 import com.badlogic.gdx.scenes.scene2d.ui.Skin;
 import com.badlogic.gdx.scenes.scene2d.ui.Table;
@@ -21,6 +23,9 @@ import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 
 import java.util.*;
+
+import org.example.snake.HighScores;
+import org.example.snake.MainGame;
 
 public class GameScreen extends ScreenAdapter {
     public static final int DEFAULT_CELL_SIZE = 20;
@@ -42,6 +47,7 @@ public class GameScreen extends ScreenAdapter {
     private int worldHeight;
 
     private Deque<Point> snake;
+    private Deque<Point> prevSnake;
     private Set<Point> snakeSet;
     private Direction dir = Direction.RIGHT;
     private Direction nextDir = Direction.RIGHT;
@@ -49,8 +55,18 @@ public class GameScreen extends ScreenAdapter {
     private Random rng;
 
     private float accumulator = 0f;
+    private float lastStepTime = Level.LEVEL_1.stepTime;
+    private float elapsedTime = 0f;
+    // Reusable buffers to reduce per-frame allocations
+    private float[] currX, currY, prevX, prevY, tanX, tanY, ptsX, ptsY;
     private boolean gameOver = false;
     private int score = 0;
+
+    // Reusable buffers to minimize GC during rendering
+    private java.util.ArrayList<Vector2> tmpCurr = new java.util.ArrayList<>();
+    private java.util.ArrayList<Vector2> tmpPrev = new java.util.ArrayList<>();
+    private java.util.ArrayList<Vector2> tmpPts = new java.util.ArrayList<>();
+    private Vector2[] tmpTangents;
 
     private Stage uiStage;
     private Skin uiSkin;
@@ -144,6 +160,7 @@ public class GameScreen extends ScreenAdapter {
         gameOver = false;
         spawnFood();
         accumulator = 0f;
+        prevSnake = copySnake(snake);
     }
 
     private void spawnFood() {
@@ -168,14 +185,17 @@ public class GameScreen extends ScreenAdapter {
 
         clearAndSetupProjection();
 
+        elapsedTime += delta;
+
         shapes.begin(ShapeRenderer.ShapeType.Filled);
-        drawBackgroundGrid();
-        drawFood();
-        drawSnake();
+        SnakeRenderer.drawBackgroundGrid(shapes, originX, originY, cellSize, GRID_COLS, GRID_ROWS);
+        SnakeRenderer.drawFood(shapes, originX, originY, cellSize, food);
+        float alpha = lastStepTime > 0f ? MathUtils.clamp(accumulator / lastStepTime, 0f, 1f) : 1f;
+        SnakeRenderer.drawSnakeSausage(shapes, originX, originY, cellSize, snake, prevSnake, alpha, elapsedTime);
         shapes.end();
 
         batch.begin();
-        drawHud();
+        SnakeRenderer.drawHud(batch, font, originX, originY + worldHeight, score, gameOver);
         batch.end();
 
         uiStage.act(delta);
@@ -184,7 +204,9 @@ public class GameScreen extends ScreenAdapter {
 
     private void updateGame(float delta) {
         accumulator += delta;
-        tickAccumulator(getEffectiveStepTime());
+        float stepTime = getEffectiveStepTime();
+        lastStepTime = stepTime;
+        tickAccumulator(stepTime);
     }
 
     private boolean handleGameOverInput() {
@@ -201,6 +223,7 @@ public class GameScreen extends ScreenAdapter {
 
     private void tickAccumulator(float stepTime) {
         while (accumulator >= stepTime) {
+            prevSnake = copySnake(snake);
             step();
             accumulator -= stepTime;
         }
@@ -241,24 +264,127 @@ public class GameScreen extends ScreenAdapter {
         shapes.rect(originX + food.x * cellSize, originY + food.y * cellSize, cellSize, cellSize);
     }
 
-    private void drawSnake() {
-        int i = 0;
-        for (Point p : snake) {
-            if (i == 0) shapes.setColor(Color.LIME);
-            else shapes.setColor(new Color(0.2f, 0.8f, 0.2f, 1f));
+    private void drawSnakeSausage(float alpha) {
+        if (snake == null || snake.isEmpty()) return;
 
-            shapes.rect(originX + p.x * cellSize, originY + p.y * cellSize, cellSize, cellSize);
-            i++;
+        java.util.List<Vector2> curr = new java.util.ArrayList<>();
+        java.util.List<Vector2> prev = new java.util.ArrayList<>();
+        for (Point p : snake) curr.add(gridToCenter(p));
+        if (prevSnake != null && prevSnake.size() == snake.size()) {
+            for (Point p : prevSnake) prev.add(gridToCenter(p));
+        } else {
+            prev.addAll(curr);
         }
+
+        int n = curr.size();
+        if (n == 0) return;
+        Vector2[] tangents = new Vector2[n];
+        for (int i = 0; i < n; i++) {
+            Vector2 a = (i == 0) ? curr.get(i) : curr.get(i - 1);
+            Vector2 b = (i == n - 1) ? curr.get(i) : curr.get(i + 1);
+            Vector2 t = new Vector2(b).sub(a);
+            if (t.isZero(0.0001f)) t.set(1, 0);
+            tangents[i] = t.nor();
+        }
+
+        float bodyRadius = cellSize * 0.35f;
+        float A = cellSize * 0.26f; // stronger amplitude
+        float k = 1.4f;             // higher spatial frequency
+        float w = 5.0f;             // faster wave
+
+        java.util.List<Vector2> pts = new java.util.ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            Vector2 p0 = (i < prev.size()) ? prev.get(i) : curr.get(i);
+            Vector2 p1 = curr.get(i);
+            Vector2 p = new Vector2(p0).lerp(p1, alpha);
+            Vector2 t = tangents[i];
+            float phase = i * k - elapsedTime * w;
+            float off = A * MathUtils.sin(phase);
+            p.add(-t.y * off, t.x * off);
+            pts.add(p);
+        }
+
+        // Body lines
+        shapes.setColor(new Color(0.2f, 0.8f, 0.2f, 1f));
+        for (int i = n - 1; i > 0; i--) {
+            Vector2 a = pts.get(i);
+            Vector2 b = pts.get(i - 1);
+            shapes.rectLine(a.x, a.y, b.x, b.y, bodyRadius * 2f);
+        }
+        // Round joints to avoid hard corners between segments
+        for (int i = 1; i < n - 1; i++) {
+            Vector2 p = pts.get(i);
+            shapes.circle(p.x, p.y, bodyRadius);
+        }
+        // Tail cap
+        Vector2 tail = pts.get(n - 1);
+        shapes.circle(tail.x, tail.y, bodyRadius);
+
+        // Head
+        Vector2 head = pts.get(0);
+        float headRadius = bodyRadius * 1.15f;
+        shapes.setColor(Color.LIME);
+        shapes.circle(head.x, head.y, headRadius);
+
+        // Eyes (use forward vector opposite to tangent at head)
+        Vector2 headTan = tangents[0];
+        float fwdX = -headTan.x, fwdY = -headTan.y;
+        float norm = (float)Math.sqrt(fwdX*fwdX + fwdY*fwdY);
+        if (norm > 1e-6f) { fwdX /= norm; fwdY /= norm; } else { fwdX = 1; fwdY = 0; }
+        float nX = -fwdY, nY = fwdX;
+        float eyeSide = headRadius * 0.6f;
+        float eyeForward = headRadius * 0.15f;
+        float eyeR = Math.max(2f, headRadius * 0.22f);
+        float eyeLX = head.x + nX * eyeSide + fwdX * eyeForward;
+        float eyeLY = head.y + nY * eyeSide + fwdY * eyeForward;
+        float eyeRX = head.x - nX * eyeSide + fwdX * eyeForward;
+        float eyeRY = head.y - nY * eyeSide + fwdY * eyeForward;
+        shapes.setColor(Color.WHITE);
+        shapes.circle(eyeLX, eyeLY, eyeR);
+        shapes.circle(eyeRX, eyeRY, eyeR);
+        shapes.setColor(Color.BLACK);
+        float pupilR = Math.max(1.5f, eyeR * 0.45f);
+        float pox = fwdX * eyeR * 0.2f;
+        float poy = fwdY * eyeR * 0.2f;
+        shapes.circle(eyeLX + pox, eyeLY + poy, pupilR);
+        shapes.circle(eyeRX + pox, eyeRY + poy, pupilR);
+
+        // Tongue (forked), red — forward
+        shapes.setColor(Color.SCARLET);
+        float mouthX = head.x + fwdX * headRadius * 1.05f;
+        float mouthY = head.y + fwdY * headRadius * 1.05f;
+        float tongueLen = headRadius * 1.2f;
+        float ang = 18f * MathUtils.degreesToRadians;
+        float cosA = MathUtils.cos(ang), sinA = MathUtils.sin(ang);
+        float dirLx = fwdX * cosA - fwdY * sinA;
+        float dirLy = fwdX * sinA + fwdY * cosA;
+        float dirRx = fwdX * cosA + fwdY * sinA;
+        float dirRy = -fwdX * sinA + fwdY * cosA;
+        float tipLX = mouthX + dirLx * tongueLen;
+        float tipLY = mouthY + dirLy * tongueLen;
+        float tipRX = mouthX + dirRx * tongueLen;
+        float tipRY = mouthY + dirRy * tongueLen;
+        float baseOff = bodyRadius * 0.12f;
+        float baseLX = mouthX + nX * baseOff;
+        float baseLY = mouthY + nY * baseOff;
+        float baseRX = mouthX - nX * baseOff;
+        float baseRY = mouthY - nY * baseOff;
+        shapes.triangle(baseLX, baseLY, mouthX, mouthY, tipLX, tipLY);
+        shapes.triangle(baseRX, baseRY, mouthX, mouthY, tipRX, tipRY);
     }
 
-    private void drawHud() {
-        if (gameOver) {
-            return;
-        }
-        String text = "Score: " + score;
-        font.draw(batch, text, originX + 8, originY + worldHeight - 8);
+    private Vector2 gridToCenter(Point p) {
+        return new Vector2(
+                originX + p.x * cellSize + cellSize / 2f,
+                originY + p.y * cellSize + cellSize / 2f
+        );
     }
+
+    private Deque<Point> copySnake(Deque<Point> src) {
+        return new ArrayDeque<>(src); // Points are immutable here
+    }
+
+    
 
     private void handleInput() {
         if (Gdx.input.isKeyJustPressed(Input.Keys.UP) || Gdx.input.isKeyJustPressed(Input.Keys.W)) {
@@ -363,7 +489,7 @@ public class GameScreen extends ScreenAdapter {
         Direction(int dx, int dy) { this.dx = dx; this.dy = dy; }
     }
 
-    private static class Point {
+    public static class Point {
         final int x, y;
         Point(int x, int y) { this.x = x; this.y = y; }
         @Override public boolean equals(Object o) { if (this == o) return true; if (o == null || getClass() != o.getClass()) return false; Point point = (Point) o; return x == point.x && y == point.y; }

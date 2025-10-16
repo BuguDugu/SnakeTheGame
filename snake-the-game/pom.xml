@@ -10,7 +10,7 @@
     <packaging>pom</packaging>
 
     <properties>
-        <maven.compiler.release>25</maven.compiler.release>
+        <maven.compiler.release>17</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <gdx.version>1.12.1</gdx.version>
         <main.class>org.example.snake.DesktopLauncher</main.class>
@@ -45,7 +45,7 @@
                 <plugin>
                     <groupId>com.akathist.maven.plugins.launch4j</groupId>
                     <artifactId>launch4j-maven-plugin</artifactId>
-                    <version>1.7.25</version>
+                    <version>2.5.0</version>
                 </plugin>
             </plugins>
         </pluginManagement>

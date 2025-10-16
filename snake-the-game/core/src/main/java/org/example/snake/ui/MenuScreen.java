@@ -1,4 +1,4 @@
-package org.example.snake;
+package org.example.snake.ui;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -19,6 +19,9 @@ import com.badlogic.gdx.scenes.scene2d.utils.Drawable;
 import com.badlogic.gdx.scenes.scene2d.utils.TextureRegionDrawable;
 import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
+
+import org.example.snake.MainGame;
+import org.example.snake.ui.LevelSelectScreen;
 
 public class MenuScreen extends ScreenAdapter {
     private final MainGame game;

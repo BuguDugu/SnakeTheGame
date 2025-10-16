@@ -1,4 +1,4 @@
-package org.example.snake;
+package org.example.snake.ui;
 
 import com.badlogic.gdx.Gdx;
 import com.badlogic.gdx.Input;
@@ -19,6 +19,9 @@ import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 
 import java.util.List;
+
+import org.example.snake.HighScores;
+import org.example.snake.MainGame;
 
 public class HighScoresScreen extends ScreenAdapter {
     private final MainGame game;
