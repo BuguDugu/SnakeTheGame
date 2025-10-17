@@ -239,7 +239,7 @@ public class GameScreen extends ScreenAdapter {
     }
 
     private void clearAndSetupProjection() {
-        Gdx.gl.glClearColor(0.07f, 0.07f, 0.1f, 1f);
+        Gdx.gl.glClearColor(0.015f, 0.02f, 0.05f, 1f);
         Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT);
 
         camera.update();
@@ -248,14 +248,7 @@ public class GameScreen extends ScreenAdapter {
     }
 
     private void drawBackgroundGrid() {
-        shapes.setColor(new Color(0.12f, 0.12f, 0.17f, 1f));
-        for (int y = 0; y < GRID_ROWS; y++) {
-            for (int x = 0; x < GRID_COLS; x++) {
-                if (((x + y) & 1) == 0) {
-                    shapes.rect(originX + x * cellSize, originY + y * cellSize, cellSize, cellSize);
-                }
-            }
-        }
+        SnakeRenderer.drawBackgroundGrid(shapes, originX, originY, cellSize, GRID_COLS, GRID_ROWS);
     }
 
     private void drawFood() {
