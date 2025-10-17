@@ -183,7 +183,8 @@ public class MultiplayerGameScreen extends ScreenAdapter {
         }
         Event event;
         boolean leaderboardChanged = false;
-        while ((event = client.pollEvent()) != null) {
+        int processed = 0;
+        while ((event = client.pollEvent()) != null && processed++ < 16) {
             if (event instanceof Event.Connected) {
                 statusMessage = "Connected, joining lobby";
             } else if (event instanceof Event.WelcomeEvent welcomeEvent) {
@@ -235,31 +236,38 @@ public class MultiplayerGameScreen extends ScreenAdapter {
         drawFoods();
         drawPlayers();
         shapes.end();
+        // Names above players (world space)
+        drawPlayerNames();
+        // Minimap (screen space)
+        drawMinimap();
     }
 
     private void drawGrid() {
-        int minCol = Math.max(0, (int) ((camera.position.x - camera.viewportWidth / 2f) / cellSize) - 1);
-        int maxCol = Math.min(worldCols - 1, (int) ((camera.position.x + camera.viewportWidth / 2f) / cellSize) + 1);
-        int minRow = Math.max(0, (int) ((camera.position.y - camera.viewportHeight / 2f) / cellSize) - 1);
-        int maxRow = Math.min(worldRows - 1, (int) ((camera.position.y + camera.viewportHeight / 2f) / cellSize) + 1);
-        Color even = new Color(0.1f, 0.12f, 0.16f, 1f);
-        Color odd = new Color(0.09f, 0.1f, 0.14f, 1f);
-        for (int y = minRow; y <= maxRow; y++) {
-            for (int x = minCol; x <= maxCol; x++) {
-                shapes.setColor(((x + y) & 1) == 0 ? even : odd);
-                shapes.rect(x * cellSize, y * cellSize, cellSize, cellSize);
-            }
-        }
+        // Solid navy background
+        shapes.setColor(0.015f, 0.02f, 0.05f, 1f);
+        shapes.rect(0, 0, worldWidth, worldHeight);
+        // Visible world borders
+        float t = Math.max(2f, cellSize * 0.15f);
+        shapes.setColor(0.2f, 0.8f, 1f, 1f);
+        shapes.rect(0, 0, worldWidth, t);
+        shapes.rect(0, worldHeight - t, worldWidth, t);
+        shapes.rect(0, 0, t, worldHeight);
+        shapes.rect(worldWidth - t, 0, t, worldHeight);
     }
 
     private void drawFoods() {
         if (snapshot.foods == null) return;
         shapes.setColor(Color.SCARLET);
         float radius = cellSize * 0.35f;
+        float minX = camera.position.x - camera.viewportWidth / 2f - cellSize;
+        float maxX = camera.position.x + camera.viewportWidth / 2f + cellSize;
+        float minY = camera.position.y - camera.viewportHeight / 2f - cellSize;
+        float maxY = camera.position.y + camera.viewportHeight / 2f + cellSize;
         for (MultiplayerClient.Point f : snapshot.foods) {
             float cx = f.x * cellSize + cellSize / 2f;
             float cy = f.y * cellSize + cellSize / 2f;
-            shapes.circle(cx, cy, radius, 12);
+            if (cx < minX || cx > maxX || cy < minY || cy > maxY) continue;
+            shapes.circle(cx, cy, radius, 10);
         }
     }
 
@@ -360,6 +368,92 @@ public class MultiplayerGameScreen extends ScreenAdapter {
         if (buttonUpTex != null) buttonUpTex.dispose();
         if (buttonOverTex != null) buttonOverTex.dispose();
         if (buttonDownTex != null) buttonDownTex.dispose();
+    }
+
+    private void drawPlayerNames() {
+        if (snapshot == null || snapshot.players == null) return;
+        batch.setProjectionMatrix(camera.combined);
+        batch.begin();
+        Color prev = font.getColor().cpy();
+        float bodyRadius = cellSize * 0.4f;
+        float minX = camera.position.x - camera.viewportWidth / 2f - cellSize;
+        float maxX = camera.position.x + camera.viewportWidth / 2f + cellSize;
+        float minY = camera.position.y - camera.viewportHeight / 2f - cellSize;
+        float maxY = camera.position.y + camera.viewportHeight / 2f + cellSize;
+        for (MultiplayerClient.Player p : snapshot.players) {
+            if (p.segments == null || p.segments.isEmpty()) continue;
+            MultiplayerClient.Point head = p.segments.get(0);
+            float hx = head.x * cellSize + cellSize / 2f;
+            float hy = head.y * cellSize + cellSize / 2f;
+            if (hx < minX || hx > maxX || hy < minY || hy > maxY) continue;
+            boolean isSelf = Objects.equals(p.id, playerId);
+            String label = (p.bot ? "[BOT] " : "") + (p.name != null ? p.name : "?");
+            if (isSelf) {
+                font.setColor(Color.YELLOW);
+            } else if (p.bot) {
+                font.setColor(new Color(0.8f,0.8f,0.8f,1f));
+            } else {
+                font.setColor(Color.WHITE);
+            }
+            font.draw(batch, label, hx - label.length() * 4f, hy + bodyRadius + 14f);
+        }
+        font.setColor(prev);
+        batch.end();
+    }
+
+    private void drawMinimap() {
+        if (snapshot == null) return;
+        // Switch to UI projection
+        if (uiStage == null) return;
+        shapes.setProjectionMatrix(uiStage.getCamera().combined);
+        shapes.begin(ShapeRenderer.ShapeType.Filled);
+        int sw = Gdx.graphics.getWidth();
+        int sh = Gdx.graphics.getHeight();
+        float r = Math.max(36f, Math.min(sw, sh) * 0.08f);
+        float cx = sw - 16f - r;
+        float cy = sh - 16f - r;
+        // ring
+        shapes.setColor(Color.WHITE);
+        shapes.circle(cx, cy, r, 40);
+        shapes.setColor(0,0,0,0.35f);
+        shapes.circle(cx, cy, r - 2f, 32);
+        // draw players
+        if (snapshot.players != null) {
+            for (MultiplayerClient.Player p : snapshot.players) {
+                if (p.segments == null || p.segments.isEmpty()) continue;
+                MultiplayerClient.Point head = p.segments.get(0);
+                float nx = (head.x + 0.5f) / Math.max(1f, worldCols);
+                float ny = (head.y + 0.5f) / Math.max(1f, worldRows);
+                float px = cx - r + nx * 2f * r;
+                float py = cy - r + ny * 2f * r;
+                float dx = px - cx, dy = py - cy;
+                float d2 = dx*dx + dy*dy;
+                if (d2 > (r-3f)*(r-3f)) continue; // clip outside
+                boolean isSelf = Objects.equals(p.id, playerId);
+                if (isSelf) shapes.setColor(Color.WHITE);
+                else if (p.bot) shapes.setColor(0.7f,0.7f,0.7f,1f);
+                else shapes.setColor(0.3f,0.8f,1f,1f);
+                shapes.circle(px, py, isSelf ? 3.5f : 2.5f, 12);
+            }
+        }
+        // draw foods as tiny red dots (sparse)
+        if (snapshot.foods != null) {
+            int cnt = 0;
+            for (MultiplayerClient.Point f : snapshot.foods) {
+                if (++cnt % 3 != 0) continue; // subsample for perf
+                float nx = (f.x + 0.5f) / Math.max(1f, worldCols);
+                float ny = (f.y + 0.5f) / Math.max(1f, worldRows);
+                float px = cx - r + nx * 2f * r;
+                float py = cy - r + ny * 2f * r;
+                float dx = px - cx, dy = py - cy;
+                if (dx*dx + dy*dy > (r-3f)*(r-3f)) continue;
+                shapes.setColor(Color.SCARLET);
+                shapes.circle(px, py, 1.5f, 8);
+            }
+        }
+        shapes.end();
+        // back to world projection
+        shapes.setProjectionMatrix(camera.combined);
     }
 
     private Texture makeRoundRectTex(int width, int height, Color color) {

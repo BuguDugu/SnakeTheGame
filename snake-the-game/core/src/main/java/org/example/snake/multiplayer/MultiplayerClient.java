@@ -177,6 +177,7 @@ public final class MultiplayerClient implements WebSocket.Listener {
         public boolean alive;
         public int score;
         public java.util.List<Point> segments;
+        public boolean bot; // optional, default false
     }
 
     public static final class Point {
