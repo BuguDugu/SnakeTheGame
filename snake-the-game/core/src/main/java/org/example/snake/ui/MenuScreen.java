@@ -78,6 +78,7 @@ public class MenuScreen extends ScreenAdapter {
         table.defaults().width(320).height(48).pad(8);
 
         TextButton play = new TextButton("Play", skin);
+        TextButton multiplayer = new TextButton("Multiplayer", skin);
         TextButton scores = new TextButton("High Scores", skin);
         TextButton exit = new TextButton("Exit", skin);
         TextButton settings = new TextButton("Settings", skin);
@@ -86,6 +87,12 @@ public class MenuScreen extends ScreenAdapter {
             @Override
             public void clicked(InputEvent event, float x, float y) {
                 game.showLevelSelect();
+            }
+        });
+        multiplayer.addListener(new ClickListener() {
+            @Override
+            public void clicked(InputEvent event, float x, float y) {
+                game.showMultiplayerSetup();
             }
         });
         scores.addListener(new ClickListener() {
@@ -108,8 +115,9 @@ public class MenuScreen extends ScreenAdapter {
         });
 
         table.add(play).row();
+        table.add(multiplayer).row();
         table.add(scores).row();
-            table.add(settings).row();
+        table.add(settings).row();
         table.add(exit).row();
 
         stage.addActor(table);

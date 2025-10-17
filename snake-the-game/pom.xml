@@ -19,6 +19,7 @@
     <modules>
         <module>core</module>
         <module>launcher</module>
+        <module>server</module>
     </modules>
 
     <build>
