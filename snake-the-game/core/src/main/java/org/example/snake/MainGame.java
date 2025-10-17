@@ -10,6 +10,8 @@ import com.badlogic.gdx.graphics.g2d.TextureRegion;
 
 import org.example.snake.game.Level;
 import org.example.snake.game.GameScreen;
+import org.example.snake.multiplayer.MultiplayerGameScreen;
+import org.example.snake.multiplayer.MultiplayerSetupScreen;
 import org.example.snake.ui.MenuScreen;
 import org.example.snake.ui.LevelSelectScreen;
 import org.example.snake.ui.HighScoresScreen;
@@ -52,6 +54,14 @@ public class MainGame extends Game {
 
     public void showSettings() {
         setScreen(new SettingsScreen(this));
+    }
+
+    public void showMultiplayerSetup() {
+        setScreen(new MultiplayerSetupScreen(this));
+    }
+
+    public void startMultiplayer(String playerName, String serverUri) {
+        setScreen(new MultiplayerGameScreen(this, playerName, serverUri));
     }
 
     private BitmapFont loadFont() {
