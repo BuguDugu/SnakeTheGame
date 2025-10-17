@@ -1,0 +1,30 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  jackson:
+    serialization:
+      write-dates-as-timestamps: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 2000
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+logging:
+  level:
+    org.example.snake.server: INFO
+
+game:
+  world:
+    cols: ${GAME_WORLD_COLS:120}
+    rows: ${GAME_WORLD_ROWS:120}
+  tick-millis: ${GAME_TICK_MILLIS:120}
+  redis:
+    leaderboard-key: ${GAME_LEADERBOARD_KEY:snake:leaderboard}

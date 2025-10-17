@@ -4,6 +4,7 @@ A colorful, fast, and simple Snake game built with Java + LibGDX (LWJGL3). Pick 
 
 Highlights ✨
 - 🧭 Main menu with Play, Settings, High Scores, Exit
+- 🌐 New Multiplayer lobby with name input and camera-follow gameplay
 - 🚀 Level select with 5 speeds (from chill to insane)
 - 🏅 In-memory Top 10 high scores
 - 🌿 Fresh menu visuals: styled buttons and a meadow background with a cute cartoon snake
@@ -17,6 +18,14 @@ Quick start ⚡
    mvn -f snake-the-game/pom.xml -q package
 2) Run the desktop launcher (dev):
    mvn -f snake-the-game/launcher/pom.xml exec:java
+
+Multiplayer server 🕸️
+- Requirements: Docker + Docker Compose
+- Start Redis + the Spring Boot WebSocket server:
+  docker compose up --build
+- The desktop client defaults to ws://localhost:8080/ws/game. Enter a name in the new Multiplayer menu entry and join! Snakes spawn with unique colors on a large arena, the camera follows your snake, and the HUD shows the shared leaderboard.
+- The server reads `REDIS_HOST`/`REDIS_PORT` environment variables (default: localhost:6379). Docker Compose already points it at the bundled Redis service.
+- To stop the services: docker compose down
 
 Fat JAR 🧪
 - Build a runnable fat-jar for desktop:
