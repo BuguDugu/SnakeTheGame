@@ -50,6 +50,15 @@ public class GameService {
     private final Random random = new Random();
     private final AtomicInteger colorIdx = new AtomicInteger();
 
+    // Bots
+    private final List<PlayerState> bots = new ArrayList<>();
+    private final Map<String, Direction> botDir = new HashMap<>();
+    private final Map<String, Long> botRespawnAt = new HashMap<>();
+    private long lastBotSpawnTick = 0L;
+    private static final int MAX_BOTS = 4; // keep low to reduce lag
+    private static final int BOT_RESPAWN_DELAY_TICKS = 20;
+    private static final int BOT_THINK_COOLDOWN_TICKS = 2;
+
     private final int worldCols;
     private final int worldRows;
     private final long tickMillis;
@@ -149,7 +158,9 @@ public class GameService {
     public void gameLoop() {
         long tick = tickCounter.incrementAndGet();
         ensureFood();
+        maybeSpawnBots(tick);
         updatePlayers(tick);
+        updateBots(tick);
         broadcastState(tick);
     }
 
@@ -163,6 +174,120 @@ public class GameService {
         }
     }
 
+    private void maybeSpawnBots(long tick) {
+        // Spawn not more than once per ~5 seconds and not exceeding MAX_BOTS
+        if (bots.size() >= MAX_BOTS) return;
+        if (tick - lastBotSpawnTick < Math.max(40, (5000L / Math.max(80L, tickMillis)))) return;
+        if (random.nextFloat() < 0.25f) {
+            String id = "bot-" + UUID.randomUUID();
+            String color = COLORS.get(Math.floorMod(colorIdx.getAndIncrement(), COLORS.size()));
+            PlayerState bot = new PlayerState(id, "Bot", color);
+            spawnPlayer(bot);
+            bots.add(bot);
+            botDir.put(bot.id(), Direction.values()[random.nextInt(Direction.values().length)]);
+            lastBotSpawnTick = tick;
+        }
+    }
+
+    private void updateBots(long tick) {
+        // Occupied map of all alive entities
+        Map<Point, PlayerState> occupied = new HashMap<>();
+        for (PlayerSession ps : sessions.values()) {
+            PlayerState p = ps.player();
+            if (p != null && p.alive()) {
+                for (Point seg : p.body()) occupied.put(seg, p);
+            }
+        }
+        for (PlayerState b : bots) {
+            if (b.alive()) {
+                for (Point seg : b.body()) occupied.put(seg, b);
+            }
+        }
+        for (PlayerState b : bots) {
+            if (!b.alive()) {
+                long when = Optional.ofNullable(botRespawnAt.get(b.id())).orElse(0L);
+                if (tick >= when) {
+                    spawnPlayer(b);
+                    botDir.put(b.id(), Direction.values()[random.nextInt(Direction.values().length)]);
+                    b.alive(true);
+                }
+                continue;
+            }
+            // Simple AI: try to move toward nearest food; avoid immediate collisions and walls
+            Direction desired = chooseBotDirection(b, occupied);
+            Point head = b.body().peekFirst();
+            Point newHead = head.translate(desired.dx(), desired.dy());
+            if (!withinBounds(newHead) || collides(b, newHead, occupied)) {
+                kill(b);
+                botRespawnAt.put(b.id(), tick + BOT_RESPAWN_DELAY_TICKS);
+                continue;
+            }
+            boolean grew = false;
+            if (foods.remove(newHead)) {
+                b.score(b.score() + 10);
+                grew = true;
+            }
+            b.body().addFirst(newHead);
+            occupied.put(newHead, b);
+            if (!grew) {
+                Point tail = b.body().removeLast();
+                occupied.remove(tail);
+            }
+        }
+    }
+
+    private Direction chooseBotDirection(PlayerState b, Map<Point, PlayerState> occupied) {
+        Direction current = botDir.getOrDefault(b.id(), Direction.RIGHT);
+        // Change direction occasionally
+        if (random.nextInt(BOT_THINK_COOLDOWN_TICKS) == 0) {
+            // Find nearest food
+            Point head = b.body().peekFirst();
+            Point target = null;
+            int best = Integer.MAX_VALUE;
+            for (Point f : foods) {
+                int d = Math.abs(f.x() - head.x()) + Math.abs(f.y() - head.y());
+                if (d < best) { best = d; target = f; }
+            }
+            Direction[] dirs = Direction.values();
+            Direction bestDir = current;
+            int bestScore = Integer.MIN_VALUE;
+            for (Direction d : dirs) {
+                if (d.isOpposite(current)) continue;
+                Point nh = head.translate(d.dx(), d.dy());
+                if (!withinBounds(nh) || occupied.containsKey(nh)) continue;
+                int score = 0;
+                if (target != null) score -= (Math.abs(target.x() - nh.x()) + Math.abs(target.y() - nh.y()));
+                // Prefer not to head into tight corners
+                score -= nearWallPenalty(nh);
+                if (score > bestScore) { bestScore = score; bestDir = d; }
+            }
+            current = bestDir;
+            botDir.put(b.id(), current);
+        }
+        // Fallback: if blocked, try to pick any safe dir
+        Point head = b.body().peekFirst();
+        Point nh = head.translate(current.dx(), current.dy());
+        if (!withinBounds(nh) || occupied.containsKey(nh)) {
+            for (Direction d : Direction.values()) {
+                if (d.isOpposite(current)) continue;
+                nh = head.translate(d.dx(), d.dy());
+                if (withinBounds(nh) && !occupied.containsKey(nh)) {
+                    botDir.put(b.id(), d);
+                    return d;
+                }
+            }
+        }
+        return current;
+    }
+
+    private int nearWallPenalty(Point p) {
+        int margin = 2;
+        int pen = 0;
+        if (p.x() < margin || p.x() >= worldCols - margin) pen += 2;
+        if (p.y() < margin || p.y() >= worldRows - margin) pen += 2;
+        return pen;
+    }
+
     private boolean isOccupied(Point pt) {
         for (PlayerSession ps : sessions.values()) {
             PlayerState player = ps.player();
@@ -170,6 +295,9 @@ public class GameService {
             if (player.body().contains(pt)) {
                 return true;
             }
+        }
+        for (PlayerState b : bots) {
+            if (b.alive() && b.body().contains(pt)) return true;
         }
         return foods.contains(pt);
     }
@@ -272,7 +400,13 @@ public class GameService {
             List<PointPayload> segments = player.alive()
                     ? player.body().stream().map(p -> new PointPayload(p.x(), p.y())).toList()
                     : List.of();
-            players.add(new PlayerPayload(player.id(), player.name(), player.color(), player.alive(), player.score(), segments));
+            players.add(new PlayerPayload(player.id(), player.name(), player.color(), player.alive(), player.score(), segments, false));
+        }
+        for (PlayerState bot : bots) {
+            List<PointPayload> segments = bot.alive()
+                    ? bot.body().stream().map(p -> new PointPayload(p.x(), p.y())).toList()
+                    : List.of();
+            players.add(new PlayerPayload(bot.id(), bot.name(), bot.color(), bot.alive(), bot.score(), segments, true));
         }
         List<PointPayload> foodPayload = foods.stream().map(p -> new PointPayload(p.x(), p.y())).toList();
         List<LeaderboardEntry> leaderboard = fetchLeaderboard();
@@ -436,7 +570,7 @@ public class GameService {
     }
 
     private record PlayerPayload(String id, String name, String color, boolean alive, int score,
-                                 List<PointPayload> segments) {
+                                 List<PointPayload> segments, boolean bot) {
     }
 
     private record PointPayload(int x, int y) {

@@ -12,17 +12,22 @@ import java.util.Deque;
 import java.util.List;
 
 public final class SnakeRenderer {
+    private static final Color BACKGROUND_COLOR = new Color(0.015f, 0.02f, 0.05f, 1f);
+    private static final Color VIGNETTE_COLOR = new Color(0.02f, 0.04f, 0.09f, 0.6f);
     private SnakeRenderer() {}
 
     public static void drawBackgroundGrid(ShapeRenderer shapes, int originX, int originY, int cellSize, int cols, int rows) {
-        shapes.setColor(new Color(0.12f, 0.12f, 0.17f, 1f));
-        for (int y = 0; y < rows; y++) {
-            for (int x = 0; x < cols; x++) {
-                if (((x + y) & 1) == 0) {
-                    shapes.rect(originX + x * cellSize, originY + y * cellSize, cellSize, cellSize);
-                }
-            }
-        }
+        // A calm, dark navy background that keeps the focus on the snakes.
+        shapes.setColor(BACKGROUND_COLOR);
+        shapes.rect(originX, originY, cols * cellSize, rows * cellSize);
+
+        // Subtle vignette to avoid a completely flat look without introducing a harsh pattern.
+        shapes.setColor(VIGNETTE_COLOR);
+        float margin = cellSize * 2f;
+        shapes.rect(originX + margin,
+                originY + margin,
+                Math.max(0, cols * cellSize - margin * 2f),
+                Math.max(0, rows * cellSize - margin * 2f));
     }
 
     public static void drawFood(ShapeRenderer shapes, int originX, int originY, int cellSize, GameScreen.Point food) {
